@@ -2,14 +2,17 @@
 <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 
 <div class="p-6">
-  <div class="mb-6 flex items-center justify-end gap-4" id="page-header">
-    <div id="page-title" class="mr-auto" <% unless RenderDashboard.configuration.show_title %>style="display:none"<% end %>>
+  <div class="mb-6 flex items-center justify-between" id="page-header">
+    <div id="page-title" <% unless RenderDashboard.configuration.show_title %>style="display:none"<% end %>>
       <h1 class="text-2xl font-bold text-gray-900 dark:text-slate-100">Render Metrics</h1>
       <p class="text-sm text-gray-500 dark:text-slate-400 mt-1">CPU, memory, and disk usage across all services</p>
     </div>
     <div class="flex items-center gap-2">
       <button id="title-toggle" class="p-1.5 rounded-md text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Toggle title">
         <svg class="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2h2v5h6V2h2v12h-2V9H5v5H3V2z"/></svg>
+      </button>
+      <button id="scale-toggle" class="p-1.5 rounded-md text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Toggle full scale (0–100%)">
+        <svg class="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v12M5 5l3-3 3 3M5 11l3 3 3-3"/></svg>
       </button>
       <div class="flex gap-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg p-1" id="col-picker">
         <button data-cols="1" class="col-btn px-1.5 py-1 rounded-md transition-colors" title="1 column">
@@ -129,7 +132,27 @@ document.addEventListener('DOMContentLoaded', function() {
   const SERVICES_WITH_DISK = new Set(<%= raw @services.select { |s| s.dig("serviceDetails", "disk").present? }.map { |s| s["id"] }.to_json %>);
 
   const charts = {};
-  let currentHours = 24;
+  var urlParams = new URLSearchParams(window.location.search);
+  var titleDefault = <%= RenderDashboard.configuration.show_title ? 'true' : 'false' %>;
+  let currentHours = parseInt(urlParams.get('hours')) || 24;
+  let currentCols = parseInt(urlParams.get('cols')) || 1;
+  let fullScale = urlParams.get('scale') === 'full';
+  var initProject = urlParams.get('project') || '';
+  var initTitle = urlParams.has('title') ? urlParams.get('title') === '1' : titleDefault;
+
+  function updateURL() {
+    var params = new URLSearchParams();
+    if (currentHours !== 24) params.set('hours', currentHours);
+    if (currentCols !== 1) params.set('cols', currentCols);
+    if (fullScale) params.set('scale', 'full');
+    var pf = document.getElementById('project-filter');
+    if (pf && pf.value) params.set('project', pf.value);
+    var te = document.getElementById('page-title');
+    var titleVisible = te && te.style.display !== 'none';
+    if (titleVisible !== titleDefault) params.set('title', titleVisible ? '1' : '0');
+    var qs = params.toString();
+    history.replaceState(null, '', qs ? '?' + qs : window.location.pathname);
+  }
 
   const isDark = () => document.documentElement.classList.contains('dark');
 
@@ -182,7 +205,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return val.toFixed(1) + (unit ? ' ' + unit : '');
           }
         },
-        min: 0
+        min: 0,
+        max: (fullScale && unit === '%') ? 100 : undefined
       },
       tooltip: {
         theme: c.tooltip,
@@ -397,18 +421,43 @@ document.addEventListener('DOMContentLoaded', function() {
   var titleEl = document.getElementById('page-title');
   var titleToggle = document.getElementById('title-toggle');
   if (titleToggle && titleEl) {
-    titleToggle.addEventListener('click', function() {
-      var hidden = titleEl.style.display === 'none';
-      titleEl.style.display = hidden ? '' : 'none';
-      titleToggle.classList.toggle('text-gray-600', hidden);
-      titleToggle.classList.toggle('dark:text-slate-300', hidden);
-      titleToggle.classList.toggle('text-gray-400', !hidden);
-      titleToggle.classList.toggle('dark:text-slate-500', !hidden);
-    });
-    if (titleEl.style.display !== 'none') {
-      titleToggle.classList.add('text-gray-600', 'dark:text-slate-300');
-      titleToggle.classList.remove('text-gray-400', 'dark:text-slate-500');
+    titleEl.style.display = initTitle ? '' : 'none';
+    function syncTitleBtn() {
+      var visible = titleEl.style.display !== 'none';
+      titleToggle.classList.toggle('text-gray-600', visible);
+      titleToggle.classList.toggle('dark:text-slate-300', visible);
+      titleToggle.classList.toggle('text-gray-400', !visible);
+      titleToggle.classList.toggle('dark:text-slate-500', !visible);
     }
+    syncTitleBtn();
+    titleToggle.addEventListener('click', function() {
+      titleEl.style.display = titleEl.style.display === 'none' ? '' : 'none';
+      syncTitleBtn();
+      updateURL();
+    });
+  }
+
+  // Scale toggle
+  var scaleToggle = document.getElementById('scale-toggle');
+  function syncScaleBtn() {
+    if (!scaleToggle) return;
+    scaleToggle.classList.toggle('text-gray-600', fullScale);
+    scaleToggle.classList.toggle('dark:text-slate-300', fullScale);
+    scaleToggle.classList.toggle('text-gray-400', !fullScale);
+    scaleToggle.classList.toggle('dark:text-slate-500', !fullScale);
+  }
+  syncScaleBtn();
+  if (scaleToggle) {
+    scaleToggle.addEventListener('click', function() {
+      fullScale = !fullScale;
+      syncScaleBtn();
+      Object.keys(charts).forEach(function(sid) {
+        if (charts[sid]) Object.values(charts[sid]).forEach(function(c) { if (c) c.destroy(); });
+      });
+      loadedServices.clear();
+      loadAll(currentHours);
+      updateURL();
+    });
   }
 
   // Column layout picker
@@ -427,63 +476,78 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  function activateColBtn(n) {
+    if (!colPicker) return;
+    colPicker.querySelectorAll('.col-btn').forEach(function(b) {
+      b.classList.remove('bg-white', 'dark:bg-slate-700', 'text-gray-900', 'dark:text-slate-100', 'shadow-sm');
+      b.classList.add('text-gray-500', 'dark:text-slate-400');
+    });
+    var target = colPicker.querySelector('[data-cols="' + n + '"]');
+    if (target) {
+      target.classList.add('bg-white', 'dark:bg-slate-700', 'text-gray-900', 'dark:text-slate-100', 'shadow-sm');
+      target.classList.remove('text-gray-500', 'dark:text-slate-400');
+    }
+  }
   if (colPicker) {
     colPicker.querySelectorAll('.col-btn').forEach(function(btn) {
       btn.addEventListener('click', function() {
-        colPicker.querySelectorAll('.col-btn').forEach(function(b) {
-          b.classList.remove('bg-white', 'dark:bg-slate-700', 'text-gray-900', 'dark:text-slate-100', 'shadow-sm');
-          b.classList.add('text-gray-500', 'dark:text-slate-400');
-        });
-        btn.classList.add('bg-white', 'dark:bg-slate-700', 'text-gray-900', 'dark:text-slate-100', 'shadow-sm');
-        btn.classList.remove('text-gray-500', 'dark:text-slate-400');
-        setColumns(parseInt(btn.dataset.cols));
+        currentCols = parseInt(btn.dataset.cols);
+        activateColBtn(currentCols);
+        setColumns(currentCols);
+        updateURL();
       });
     });
-    var defaultColBtn = colPicker.querySelector('[data-cols="1"]');
-    if (defaultColBtn) {
-      defaultColBtn.classList.add('bg-white', 'dark:bg-slate-700', 'text-gray-900', 'dark:text-slate-100', 'shadow-sm');
-      defaultColBtn.classList.remove('text-gray-500', 'dark:text-slate-400');
-    }
   }
+  activateColBtn(currentCols);
+  setColumns(currentCols);
 
   // Project filter
   var projectFilter = document.getElementById('project-filter');
+  function applyProjectFilter(selected) {
+    document.querySelectorAll('.project-group').forEach(function(group) {
+      group.style.display = (!selected || group.dataset.project === selected) ? '' : 'none';
+    });
+  }
   if (projectFilter) {
+    if (initProject) {
+      projectFilter.value = initProject;
+      applyProjectFilter(initProject);
+    }
     projectFilter.addEventListener('change', function() {
-      var selected = this.value;
-      document.querySelectorAll('.project-group').forEach(function(group) {
-        group.style.display = (!selected || group.dataset.project === selected) ? '' : 'none';
-      });
+      applyProjectFilter(this.value);
       visibleServiceIds().forEach(function(id) {
         if (!loadedServices.has(id)) { loadService(id, currentHours); loadedServices.add(id); }
       });
+      updateURL();
     });
   }
 
   // Time range picker
   const picker = document.getElementById('time-range-picker');
+  function activateTimeBtn(hours) {
+    if (!picker) return;
+    picker.querySelectorAll('.time-btn').forEach(function(b) {
+      b.classList.remove('bg-white', 'dark:bg-slate-700', 'text-gray-900', 'dark:text-slate-100', 'shadow-sm');
+      b.classList.add('text-gray-500', 'dark:text-slate-400');
+    });
+    var target = picker.querySelector('[data-hours="' + hours + '"]');
+    if (target) {
+      target.classList.add('bg-white', 'dark:bg-slate-700', 'text-gray-900', 'dark:text-slate-100', 'shadow-sm');
+      target.classList.remove('text-gray-500', 'dark:text-slate-400');
+    }
+  }
   if (picker) {
     picker.querySelectorAll('.time-btn').forEach(function(btn) {
       btn.addEventListener('click', function() {
-        picker.querySelectorAll('.time-btn').forEach(function(b) {
-          b.classList.remove('bg-white', 'dark:bg-slate-700', 'text-gray-900', 'dark:text-slate-100', 'shadow-sm');
-          b.classList.add('text-gray-500', 'dark:text-slate-400');
-        });
-        btn.classList.add('bg-white', 'dark:bg-slate-700', 'text-gray-900', 'dark:text-slate-100', 'shadow-sm');
-        btn.classList.remove('text-gray-500', 'dark:text-slate-400');
         currentHours = parseInt(btn.dataset.hours);
+        activateTimeBtn(currentHours);
         loadedServices.clear();
         loadAll(currentHours);
+        updateURL();
       });
     });
-
-    // Activate default button
-    const defaultBtn = picker.querySelector('[data-hours="24"]');
-    if (defaultBtn) {
-      defaultBtn.classList.add('bg-white', 'dark:bg-slate-700', 'text-gray-900', 'dark:text-slate-100', 'shadow-sm');
-      defaultBtn.classList.remove('text-gray-500', 'dark:text-slate-400');
-    }
   }
+  activateTimeBtn(currentHours);
 
   // Initial load
   loadAll(currentHours);
