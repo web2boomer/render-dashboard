@@ -22,6 +22,10 @@ module RenderDashboard
       get("/services/#{service_id}")
     end
 
+    def projects(limit: 50)
+      get("/projects", limit: limit).map { |p| p["project"] || p }
+    end
+
     # ── Metrics ───────────────────────────────────────────────
 
     def cpu(**opts)
@@ -107,6 +111,9 @@ module RenderDashboard
       )
 
       unless response.success?
+        if response.code == 429
+          raise RateLimitError, "Rate limit exceeded. Retrying shortly…"
+        end
         raise Error, "Render API error #{response.code}: #{response.body}"
       end
 

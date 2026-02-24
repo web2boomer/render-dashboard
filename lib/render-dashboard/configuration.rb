@@ -2,10 +2,11 @@
 
 module RenderDashboard
   class Configuration
-    attr_accessor :api_key
+    attr_accessor :api_key, :show_title
 
     def initialize
       @api_key = ENV["RENDER_API_KEY"]
+      @show_title = true
     end
   end
 
