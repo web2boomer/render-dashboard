@@ -2,10 +2,13 @@
 
 module RenderDashboard
   class Engine < ::Rails::Engine
-    isolate_namespace RenderDashboard
-
-    initializer "render-dashboard.assets" do |app|
-      # Engine views are automatically available via isolate_namespace
+    initializer "render-dashboard.append_routes", after: "action_dispatch.prepare_dispatcher" do |app|
+      app.routes.append do
+        scope "/render" do
+          get "metrics",      to: "render_dashboard/metrics#index",  as: :render_metrics
+          get "metrics/data", to: "render_dashboard/metrics#data",   as: :render_metrics_data
+        end
+      end
     end
 
     rake_tasks do

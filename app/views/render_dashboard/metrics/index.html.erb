@@ -73,7 +73,7 @@
 <% content_for :page_specific_js do %>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  const DATA_URL   = '<%= render_dashboard.metrics_data_path %>';
+  const DATA_URL   = '<%= render_metrics_data_path %>';
   const SERVICE_IDS = <%= raw @services.map { |s| s["id"] }.to_json %>;
 
   const charts = {};
