@@ -9,7 +9,7 @@ module RenderDashboard
     end
 
     rake_tasks do
-      load File.expand_path("../../tasks/render_dashboard.rake", __dir__)
+      load File.expand_path("../tasks/render_dashboard.rake", __dir__)
     end
   end
 end
