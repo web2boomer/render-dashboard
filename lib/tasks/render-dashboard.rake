@@ -1,4 +1,4 @@
-namespace :render_dashboard do
+namespace :"render-dashboard" do
 
   desc "Show Render service and disk info for all services (or set RENDER_SERVICE_ID for one)"
   task info: :environment do
@@ -33,7 +33,7 @@ namespace :render_dashboard do
       puts ""
     end
   rescue => e
-    warn "render_dashboard:info failed: #{e.message}"
+    warn "render-dashboard:info failed: #{e.message}"
   end
 
 
@@ -96,7 +96,7 @@ namespace :render_dashboard do
       end
     end
   rescue => e
-    warn "render_dashboard:disk_check failed: #{e.message}"
+    warn "render-dashboard:disk_check failed: #{e.message}"
   end
 
 end

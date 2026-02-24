@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-require_relative "lib/render_dashboard/version"
+require_relative "lib/render-dashboard/version"
 
 Gem::Specification.new do |spec|
-  spec.name = "render_dashboard"
+  spec.name = "render-dashboard"
   spec.version = RenderDashboard::VERSION
   spec.authors = ["Alex O'Byrne"]
   spec.email = ["alex@aob.io"]

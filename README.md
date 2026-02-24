@@ -13,16 +13,16 @@ A Ruby gem providing a [Render.com](https://render.com) API client, mountable Ra
 Add to your Gemfile:
 
 ```ruby
-gem "render_dashboard", path: "/path/to/render_dashboard"
+gem "render-dashboard", path: "/path/to/render-dashboard"
 # or
-gem "render_dashboard", github: "your-org/render_dashboard", branch: "main"
+gem "render-dashboard", github: "your-org/render-dashboard", branch: "main"
 ```
 
 Then run `bundle install`.
 
 ## Configuration
 
-Create an initializer (e.g. `config/initializers/render_dashboard.rb`):
+Create an initializer (e.g. `config/initializers/render-dashboard.rb`):
 
 ```ruby
 RenderDashboard.configure do |config|
@@ -113,26 +113,26 @@ All metric methods accept: `resource:`, `start_time:`, `end_time:`, `resolution:
 
 Available when the gem is loaded in a Rails app.
 
-### `render_dashboard:info`
+### `render-dashboard:info`
 
 Prints service and disk info for all services:
 
 ```bash
-rake render_dashboard:info
+rake render-dashboard:info
 ```
 
 To inspect a single service:
 
 ```bash
-RENDER_SERVICE_ID=srv-xxxxx rake render_dashboard:info
+RENDER_SERVICE_ID=srv-xxxxx rake render-dashboard:info
 ```
 
-### `render_dashboard:disk_check`
+### `render-dashboard:disk_check`
 
 Checks database disk usage against a threshold and alerts if exceeded. Queries `information_schema` (MySQL / MariaDB).
 
 ```bash
-rake render_dashboard:disk_check
+rake render-dashboard:disk_check
 ```
 
 | Environment Variable    | Description                                         | Default            |
@@ -147,6 +147,25 @@ When the threshold is exceeded the task will call the following hooks if they ex
 
 - `SystemMailer.disk_alert(used_percent:, used_gb:, total_gb:, service_name:)`
 - `WhatsappNotifier.send_system_alert(title, body)`
+
+## Development
+
+After cloning, install git hooks:
+
+```bash
+rake setup
+```
+
+This enables pre-commit checks that run automatically on `git commit`:
+
+- **Ruby syntax** — `ruby -c` on all staged `.rb` files
+- **ERB syntax** — validates staged `.erb` templates
+- **Frozen string literal** — warns if the pragma is missing from `.rb` files
+- **Trailing whitespace** — catches whitespace errors in staged files
+- **Gemspec validity** — validates the gemspec when it's staged
+- **Debug statements** — blocks `binding.pry`, `binding.irb`, `byebug`, `debugger`
+
+To bypass in an emergency: `git commit --no-verify`
 
 ## License
 

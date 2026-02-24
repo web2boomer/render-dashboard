@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+NC='\033[0m'
+
+errors=0
+
+staged_files() {
+  git diff --cached --name-only --diff-filter=ACM -- "$@"
+}
+
+echo ""
+
+# ── Ruby syntax ────────────────────────────────────────────
+rb_files=$(staged_files '*.rb')
+if [ -n "$rb_files" ]; then
+  echo -n "Checking Ruby syntax... "
+  bad=""
+  for f in $rb_files; do
+    if ! ruby -c "$f" > /dev/null 2>&1; then
+      bad="$bad  $f\n"
+    fi
+  done
+  if [ -n "$bad" ]; then
+    echo -e "${RED}FAIL${NC}"
+    echo -e "$bad"
+    errors=1
+  else
+    echo -e "${GREEN}OK${NC}"
+  fi
+fi
+
+# ── ERB syntax ─────────────────────────────────────────────
+erb_files=$(staged_files '*.erb')
+if [ -n "$erb_files" ]; then
+  echo -n "Checking ERB syntax... "
+  bad=""
+  for f in $erb_files; do
+    if ! erb -x "$f" | ruby -c > /dev/null 2>&1; then
+      bad="$bad  $f\n"
+    fi
+  done
+  if [ -n "$bad" ]; then
+    echo -e "${RED}FAIL${NC}"
+    echo -e "$bad"
+    errors=1
+  else
+    echo -e "${GREEN}OK${NC}"
+  fi
+fi
+
+# ── Frozen string literal pragma ───────────────────────────
+if [ -n "$rb_files" ]; then
+  echo -n "Checking frozen_string_literal... "
+  bad=""
+  for f in $rb_files; do
+    first_line=$(head -n 1 "$f")
+    if [ "$first_line" != "# frozen_string_literal: true" ]; then
+      bad="$bad  $f\n"
+    fi
+  done
+  if [ -n "$bad" ]; then
+    echo -e "${YELLOW}WARN${NC} (missing pragma)"
+    echo -e "$bad"
+  else
+    echo -e "${GREEN}OK${NC}"
+  fi
+fi
+
+# ── Trailing whitespace ───────────────────────────────────
+all_files=$(staged_files)
+if [ -n "$all_files" ]; then
+  echo -n "Checking trailing whitespace... "
+  ws=$(git diff --cached --check 2>&1 || true)
+  if [ -n "$ws" ]; then
+    echo -e "${RED}FAIL${NC}"
+    echo "$ws"
+    errors=1
+  else
+    echo -e "${GREEN}OK${NC}"
+  fi
+fi
+
+# ── Gemspec validity ──────────────────────────────────────
+gemspec_files=$(staged_files '*.gemspec')
+if [ -n "$gemspec_files" ]; then
+  echo -n "Validating gemspec... "
+  for f in $gemspec_files; do
+    if ! ruby -e "Gem::Specification.load('$f')" > /dev/null 2>&1; then
+      echo -e "${RED}FAIL${NC} ($f)"
+      errors=1
+    else
+      echo -e "${GREEN}OK${NC}"
+    fi
+  done
+fi
+
+# ── Debug statements ──────────────────────────────────────
+if [ -n "$rb_files" ]; then
+  echo -n "Checking for debug statements... "
+  bad=""
+  for f in $rb_files; do
+    if git diff --cached -- "$f" | grep -qE '^\+.*\b(binding\.pry|binding\.irb|byebug|debugger)\b'; then
+      bad="$bad  $f\n"
+    fi
+  done
+  if [ -n "$bad" ]; then
+    echo -e "${RED}FAIL${NC}"
+    echo -e "$bad"
+    errors=1
+  else
+    echo -e "${GREEN}OK${NC}"
+  fi
+fi
+
+echo ""
+
+if [ $errors -ne 0 ]; then
+  echo -e "${RED}Pre-commit checks failed. Fix the issues above or commit with --no-verify to skip.${NC}"
+  exit 1
+fi
