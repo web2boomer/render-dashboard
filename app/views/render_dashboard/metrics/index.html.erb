@@ -1,0 +1,303 @@
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.2/dist/apexcharts.min.js"></script>
+
+<div class="p-6">
+  <div class="mb-6 flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-slate-100">Render Metrics</h1>
+      <p class="text-sm text-gray-500 dark:text-slate-400 mt-1">CPU and memory usage across all services</p>
+    </div>
+    <div class="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1" id="time-range-picker">
+      <button data-hours="1"   class="time-btn px-3 py-1.5 text-xs font-medium rounded-md transition-colors">1h</button>
+      <button data-hours="6"   class="time-btn px-3 py-1.5 text-xs font-medium rounded-md transition-colors">6h</button>
+      <button data-hours="24"  class="time-btn px-3 py-1.5 text-xs font-medium rounded-md transition-colors active">24h</button>
+      <button data-hours="168" class="time-btn px-3 py-1.5 text-xs font-medium rounded-md transition-colors">7d</button>
+    </div>
+  </div>
+
+  <% if @error.present? %>
+    <div class="p-4 bg-red-50 dark:bg-red-900/30 border-l-4 border-red-400 dark:border-red-500 text-red-700 dark:text-red-300 rounded mb-6">
+      <strong>Error:</strong> <%= @error %>
+    </div>
+  <% end %>
+
+  <% if @services.empty? && @error.blank? %>
+    <div class="p-4 bg-yellow-50 dark:bg-yellow-900/30 border-l-4 border-yellow-400 dark:border-yellow-500 text-yellow-700 dark:text-yellow-300 rounded">
+      No services found. Make sure <code>RENDER_API_KEY</code> is configured.
+    </div>
+  <% end %>
+
+  <div id="services-container" class="space-y-6">
+    <% @services.each do |svc| %>
+      <% svc_id   = svc["id"] %>
+      <% details  = svc["serviceDetails"] || {} %>
+      <% svc_type = svc["type"] || "unknown" %>
+      <% svc_plan = details["plan"] || "—" %>
+      <% svc_region = details["region"] || "—" %>
+      <% svc_env  = details["env"] || "" %>
+
+      <div class="card p-5" data-service-id="<%= svc_id %>">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-slate-100"><%= svc["name"] %></h2>
+            <div class="flex gap-3 mt-1">
+              <span class="text-xs text-gray-500 dark:text-slate-400"><%= svc_type %></span>
+              <% if svc_env.present? %>
+                <span class="text-xs text-gray-500 dark:text-slate-400"><%= svc_env %></span>
+              <% end %>
+              <span class="text-xs text-gray-500 dark:text-slate-400"><%= svc_plan %></span>
+              <span class="text-xs text-gray-500 dark:text-slate-400"><%= svc_region %></span>
+            </div>
+          </div>
+          <span class="text-xs font-mono text-gray-400 dark:text-slate-500"><%= svc_id %></span>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div>
+            <h3 class="text-sm font-medium text-gray-600 dark:text-slate-300 mb-2">CPU</h3>
+            <div id="cpu-chart-<%= svc_id %>" class="chart-container" style="min-height: 220px;">
+              <div class="flex items-center justify-center h-[220px] text-sm text-gray-400 dark:text-slate-500">Loading...</div>
+            </div>
+          </div>
+          <div>
+            <h3 class="text-sm font-medium text-gray-600 dark:text-slate-300 mb-2">Memory</h3>
+            <div id="memory-chart-<%= svc_id %>" class="chart-container" style="min-height: 220px;">
+              <div class="flex items-center justify-center h-[220px] text-sm text-gray-400 dark:text-slate-500">Loading...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<% content_for :page_specific_js do %>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const DATA_URL   = '<%= render_dashboard.metrics_data_path %>';
+  const SERVICE_IDS = <%= raw @services.map { |s| s["id"] }.to_json %>;
+
+  const charts = {};
+  let currentHours = 24;
+
+  const isDark = () => document.documentElement.classList.contains('dark');
+
+  function chartColors() {
+    return {
+      text:   isDark() ? '#94a3b8' : '#6b7280',
+      grid:   isDark() ? '#334155' : '#e5e7eb',
+      bg:     isDark() ? '#1e293b' : '#ffffff',
+      tooltip: isDark() ? 'dark' : 'light'
+    };
+  }
+
+  function baseOptions(seriesData, unit, colors) {
+    const c = chartColors();
+    return {
+      series: seriesData,
+      chart: {
+        type: 'area',
+        height: 220,
+        fontFamily: 'Inter, system-ui, sans-serif',
+        background: 'transparent',
+        toolbar: { show: false },
+        zoom: { enabled: false },
+        animations: { enabled: true, easing: 'easeinout', speed: 400 }
+      },
+      colors: colors,
+      fill: {
+        type: 'gradient',
+        gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05, stops: [0, 90, 100] }
+      },
+      dataLabels: { enabled: false },
+      stroke: { curve: 'smooth', width: 2 },
+      xaxis: {
+        type: 'datetime',
+        labels: {
+          style: { colors: c.text, fontSize: '10px' },
+          datetimeUTC: false
+        },
+        axisBorder: { show: false },
+        axisTicks: { show: false }
+      },
+      yaxis: {
+        labels: {
+          style: { colors: c.text, fontSize: '11px' },
+          formatter: function(val) {
+            if (val == null) return '';
+            if (unit === '%') return val.toFixed(0) + '%';
+            if (unit === 'GB') return val.toFixed(2) + ' GB';
+            if (unit === 'MB') return val.toFixed(0) + ' MB';
+            return val.toFixed(1) + (unit ? ' ' + unit : '');
+          }
+        },
+        min: 0
+      },
+      tooltip: {
+        theme: c.tooltip,
+        x: { format: 'HH:mm  dd MMM' },
+        y: {
+          formatter: function(val) {
+            if (val == null) return '—';
+            if (unit === '%') return val.toFixed(1) + '%';
+            if (unit === 'GB') return val.toFixed(3) + ' GB';
+            if (unit === 'MB') return val.toFixed(1) + ' MB';
+            return val.toFixed(2) + (unit ? ' ' + unit : '');
+          }
+        }
+      },
+      grid: {
+        borderColor: c.grid,
+        strokeDashArray: 4,
+        padding: { left: 5, right: 5 }
+      },
+      legend: { show: seriesData.length > 1, labels: { colors: c.text } },
+      markers: { size: 0, hover: { size: 4 } }
+    };
+  }
+
+  function parseSeries(dataArr) {
+    if (!Array.isArray(dataArr) || dataArr.length === 0) return { series: [], unit: '' };
+
+    const unit = dataArr[0].unit || '';
+    const series = dataArr.map(function(ts) {
+      const label = (ts.labels || []).map(function(l) { return l.value; }).join(' ');
+      const data = (ts.values || []).map(function(v) {
+        return [new Date(v.timestamp).getTime(), v.value];
+      });
+      return { name: label || 'value', data: data };
+    });
+    return { series: series, unit: unit };
+  }
+
+  function renderChart(containerId, dataArr, limitArr, colors) {
+    const parsed = parseSeries(dataArr);
+    let series = parsed.series;
+    let unit = parsed.unit;
+
+    // Add limit as a dashed line if available
+    if (Array.isArray(limitArr) && limitArr.length > 0) {
+      const limitParsed = parseSeries(limitArr);
+      if (limitParsed.series.length > 0) {
+        const limitSeries = limitParsed.series[0];
+        limitSeries.name = 'Limit';
+        series = series.concat([limitSeries]);
+      }
+    }
+
+    if (series.length === 0) {
+      const el = document.getElementById(containerId);
+      if (el) el.innerHTML = '<div class="flex items-center justify-center h-[220px] text-sm text-gray-400 dark:text-slate-500">No data available</div>';
+      return null;
+    }
+
+    // Convert to percentage if we have both usage and limit
+    if (series.length >= 2 && series[series.length - 1].name === 'Limit') {
+      const usageSeries = series.slice(0, -1);
+      const limitData = series[series.length - 1].data;
+
+      if (limitData.length > 0) {
+        const limitValue = limitData[0][1];
+        if (limitValue > 0) {
+          usageSeries.forEach(function(s) {
+            s.data = s.data.map(function(point) {
+              return [point[0], (point[1] / limitValue) * 100];
+            });
+          });
+          unit = '%';
+          series = usageSeries;
+        }
+      }
+    }
+
+    const opts = baseOptions(series, unit, colors);
+
+    // Tweak stroke for limit line
+    if (series.length > 1 && series[series.length - 1].name === 'Limit') {
+      opts.stroke = {
+        curve: 'smooth',
+        width: series.map(function(_, i) { return i === series.length - 1 ? 1 : 2; }),
+        dashArray: series.map(function(_, i) { return i === series.length - 1 ? 5 : 0; })
+      };
+      opts.fill = {
+        type: series.map(function(_, i) { return i === series.length - 1 ? 'solid' : 'gradient'; }),
+        gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05, stops: [0, 90, 100] },
+        opacity: series.map(function(_, i) { return i === series.length - 1 ? 0 : 1; })
+      };
+    }
+
+    const el = document.getElementById(containerId);
+    if (!el) return null;
+    el.innerHTML = '';
+
+    const chart = new ApexCharts(el, opts);
+    chart.render();
+    return chart;
+  }
+
+  function loadService(serviceId, hours) {
+    const url = DATA_URL + '?resource=' + encodeURIComponent(serviceId) + '&hours=' + hours;
+
+    fetch(url, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.error) {
+          ['cpu', 'memory'].forEach(function(type) {
+            const el = document.getElementById(type + '-chart-' + serviceId);
+            if (el) el.innerHTML = '<div class="flex items-center justify-center h-[220px] text-sm text-red-400">' + data.error + '</div>';
+          });
+          return;
+        }
+
+        // Destroy previous charts
+        if (charts[serviceId]) {
+          Object.values(charts[serviceId]).forEach(function(c) { if (c) c.destroy(); });
+        }
+        charts[serviceId] = {};
+
+        charts[serviceId].cpu = renderChart(
+          'cpu-chart-' + serviceId, data.cpu, data.cpu_limit,
+          ['#8b5cf6', '#a78bfa']
+        );
+        charts[serviceId].memory = renderChart(
+          'memory-chart-' + serviceId, data.memory, data.memory_limit,
+          ['#6366f1', '#818cf8']
+        );
+      })
+      .catch(function(err) {
+        console.error('Failed to load metrics for', serviceId, err);
+      });
+  }
+
+  function loadAll(hours) {
+    SERVICE_IDS.forEach(function(id) { loadService(id, hours); });
+  }
+
+  // Time range picker
+  const picker = document.getElementById('time-range-picker');
+  if (picker) {
+    picker.querySelectorAll('.time-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        picker.querySelectorAll('.time-btn').forEach(function(b) {
+          b.classList.remove('bg-white', 'dark:bg-slate-700', 'text-gray-900', 'dark:text-slate-100', 'shadow-sm');
+          b.classList.add('text-gray-500', 'dark:text-slate-400');
+        });
+        btn.classList.add('bg-white', 'dark:bg-slate-700', 'text-gray-900', 'dark:text-slate-100', 'shadow-sm');
+        btn.classList.remove('text-gray-500', 'dark:text-slate-400');
+        currentHours = parseInt(btn.dataset.hours);
+        loadAll(currentHours);
+      });
+    });
+
+    // Activate default button
+    const defaultBtn = picker.querySelector('[data-hours="24"]');
+    if (defaultBtn) {
+      defaultBtn.classList.add('bg-white', 'dark:bg-slate-700', 'text-gray-900', 'dark:text-slate-100', 'shadow-sm');
+      defaultBtn.classList.remove('text-gray-500', 'dark:text-slate-400');
+    }
+  }
+
+  // Initial load
+  loadAll(currentHours);
+});
+</script>
+<% end %>
