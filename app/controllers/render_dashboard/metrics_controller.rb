@@ -34,23 +34,19 @@ module RenderDashboard
 
       common_opts = { resource: resource, start_time: start_time, end_time: end_time, resolution: resolution }
 
-      cpu_data          = safe_metric(:cpu, **common_opts)
-      memory_data       = safe_metric(:memory, **common_opts)
-      cpu_limit_data    = safe_metric(:cpu_limit, **common_opts)
-      memory_limit_data = safe_metric(:memory_limit, **common_opts)
-      disk_usage_data     = safe_metric(:disk_usage, **common_opts)
-      disk_capacity_data  = safe_metric(:disk_capacity, **common_opts)
+      metrics = %i[cpu memory cpu_limit memory_limit disk_usage disk_capacity]
+      results = fetch_metrics_parallel(metrics, common_opts)
 
       payload = {
-        cpu:          cpu_data,
-        memory:       memory_data,
-        cpu_limit:    cpu_limit_data,
-        memory_limit: memory_limit_data
+        cpu:          results[:cpu],
+        memory:       results[:memory],
+        cpu_limit:    results[:cpu_limit],
+        memory_limit: results[:memory_limit]
       }
 
-      if disk_usage_data.present?
-        payload[:disk_usage]    = disk_usage_data
-        payload[:disk_capacity] = disk_capacity_data
+      if results[:disk_usage].present?
+        payload[:disk_usage]    = results[:disk_usage]
+        payload[:disk_capacity] = results[:disk_capacity]
       end
 
       render json: payload
@@ -66,6 +62,24 @@ module RenderDashboard
 
     def client
       @client ||= RenderDashboard::Client.new
+    end
+
+    def fetch_metrics_parallel(metrics, opts)
+      threads = metrics.map do |metric|
+        Thread.new(metric) { |m| [m, safe_metric(m, **opts)] }
+      end
+      results = {}
+      error = nil
+      threads.each do |t|
+        begin
+          key, value = t.value
+          results[key] = value
+        rescue RenderDashboard::RateLimitError, RenderDashboard::TimeoutError => e
+          error ||= e
+        end
+      end
+      raise error if error
+      results
     end
 
     def safe_metric(method, **opts)
