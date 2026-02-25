@@ -269,7 +269,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (series.length === 0) {
       const el = document.getElementById(containerId);
-      if (el) el.innerHTML = '<div class="flex items-center justify-center h-[360px] text-sm text-gray-400 dark:text-slate-500">No data available</div>';
+      if (el) el.innerHTML =
+        '<div class="flex flex-col items-center justify-center h-[360px] gap-1.5">' +
+          '<svg class="w-5 h-5 text-gray-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>' +
+          '<span class="text-sm text-gray-400 dark:text-slate-500">No recent activity</span>' +
+        '</div>';
       return null;
     }
 
@@ -319,12 +323,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
   const retryTimers = {};
 
-  function showRetryCountdown(serviceId) {
+  function randomRetrySeconds() {
+    return Math.floor(30 + Math.random() * 60);
+  }
+
+  function showRetryCountdown(serviceId, reason) {
     const chartTypes = ['cpu', 'memory'];
     if (SERVICES_WITH_DISK.has(serviceId)) chartTypes.push('disk');
 
-    const RETRY_SECONDS = 60;
+    const RETRY_SECONDS = randomRetrySeconds();
     let remaining = RETRY_SECONDS;
+    const label = reason === 'timeout' ? 'Timed out' : 'Rate limited';
 
     chartTypes.forEach(function(type) {
       const el = document.getElementById(type + '-chart-' + serviceId);
@@ -335,7 +344,7 @@ document.addEventListener('DOMContentLoaded', function() {
               '<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>' +
               '<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>' +
             '</svg>' +
-            '<span class="text-sm text-gray-400 dark:text-slate-500 retry-msg">Rate limited — retrying in ' + remaining + 's</span>' +
+            '<span class="text-sm text-gray-400 dark:text-slate-500 retry-msg">' + label + ' — retrying in ' + remaining + 's</span>' +
           '</div>';
       }
     });
@@ -350,7 +359,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       chartTypes.forEach(function(type) {
         const msg = document.querySelector('#' + type + '-chart-' + CSS.escape(serviceId) + ' .retry-msg');
-        if (msg) msg.textContent = 'Rate limited — retrying in ' + remaining + 's';
+        if (msg) msg.textContent = label + ' — retrying in ' + remaining + 's';
       });
     }, 1000);
   }
@@ -361,14 +370,20 @@ document.addEventListener('DOMContentLoaded', function() {
     fetch(url, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
       .then(function(r) {
         if (r.status === 429) {
-          return r.json().then(function(body) { body._rateLimited = true; return body; });
+          return r.json().then(function(body) { body._retryReason = 'rate_limit'; return body; });
+        }
+        if (r.status === 504) {
+          return r.json().then(function(body) { body._retryReason = 'timeout'; return body; });
         }
         return r.json();
       })
       .then(function(data) {
-        if (data._rateLimited) {
-          showRetryCountdown(serviceId);
-          setTimeout(function() { loadService(serviceId, hours); }, 60000);
+        if (data._retryReason) {
+          var reason = data._retryReason;
+          var delay = randomRetrySeconds() * 1000;
+          console.warn('Metrics ' + reason + ' for ' + serviceId + (data.error ? ': ' + data.error : '') + ' — retrying in ' + Math.round(delay / 1000) + 's');
+          showRetryCountdown(serviceId, reason);
+          setTimeout(function() { loadService(serviceId, hours); }, delay);
           return;
         }
 
@@ -377,6 +392,27 @@ document.addEventListener('DOMContentLoaded', function() {
             const el = document.getElementById(type + '-chart-' + serviceId);
             if (el) el.innerHTML = '<div class="flex items-center justify-center h-[360px] text-sm text-red-400">' + data.error + '</div>';
           });
+          return;
+        }
+
+        var cpuEmpty = !Array.isArray(data.cpu) || data.cpu.length === 0;
+        var memEmpty = !Array.isArray(data.memory) || data.memory.length === 0;
+        var diskEmpty = !data.disk_usage || data.disk_usage.length === 0;
+
+        if (cpuEmpty && memEmpty && diskEmpty) {
+          var emptyHtml =
+            '<div class="flex flex-col items-center justify-center h-[360px] gap-1.5">' +
+              '<svg class="w-5 h-5 text-gray-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>' +
+              '<span class="text-sm text-gray-400 dark:text-slate-500">No recent activity</span>' +
+            '</div>';
+          ['cpu', 'memory'].forEach(function(type) {
+            var el = document.getElementById(type + '-chart-' + serviceId);
+            if (el) el.innerHTML = emptyHtml;
+          });
+          if (SERVICES_WITH_DISK.has(serviceId)) {
+            var diskEl = document.getElementById('disk-chart-' + serviceId);
+            if (diskEl) diskEl.innerHTML = emptyHtml;
+          }
           return;
         }
 

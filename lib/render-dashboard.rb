@@ -7,6 +7,7 @@ require_relative "render-dashboard/client"
 module RenderDashboard
   class Error < StandardError; end
   class RateLimitError < Error; end
+  class TimeoutError < Error; end
 end
 
 require_relative "render-dashboard/engine" if defined?(Rails)

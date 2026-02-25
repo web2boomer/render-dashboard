@@ -102,22 +102,45 @@ module RenderDashboard
       get(path, **params)
     end
 
+    MAX_RETRIES = 3
+    BASE_DELAY  = 2.0 # seconds
+
     def get(path, **params)
-      response = HTTParty.get(
-        "#{BASE_URL}#{path}",
-        headers: headers,
-        query: params.empty? ? nil : params,
-        timeout: 30
-      )
+      retries = 0
 
-      unless response.success?
-        if response.code == 429
-          raise RateLimitError, "Rate limit exceeded. Retrying shortly…"
+      begin
+        response = HTTParty.get(
+          "#{BASE_URL}#{path}",
+          headers: headers,
+          query: params.empty? ? nil : params,
+          timeout: 30
+        )
+
+        unless response.success?
+          raise RateLimitError, "Rate limit exceeded on #{path}" if response.code == 429
+          raise Error, "Render API error #{response.code} on #{path}: #{response.body}"
         end
-        raise Error, "Render API error #{response.code}: #{response.body}"
-      end
 
-      response.parsed_response
+        response.parsed_response
+      rescue RateLimitError
+        if retries < MAX_RETRIES
+          retries += 1
+          sleep jitter(BASE_DELAY * (2**retries))
+          retry
+        end
+        raise RateLimitError, "Rate limit exceeded on #{path}. Retried #{retries}x."
+      rescue Net::ReadTimeout, Net::OpenTimeout, Errno::ETIMEDOUT => e
+        if retries < MAX_RETRIES
+          retries += 1
+          sleep jitter(BASE_DELAY * (2**retries))
+          retry
+        end
+        raise TimeoutError, "Timeout on #{path} after #{retries} retries: #{e.message}"
+      end
+    end
+
+    def jitter(base)
+      base * (0.5 + rand)
     end
 
     def headers

@@ -2,6 +2,8 @@
 
 A Ruby gem providing a [Render.com](https://render.com) API client, mountable Rails metrics dashboard, and monitoring rake tasks.
 
+![Dashboard screenshot](docs/screenshot.png)
+
 ## Requirements
 
 - Ruby >= 3.0

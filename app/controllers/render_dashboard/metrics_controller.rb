@@ -34,8 +34,8 @@ module RenderDashboard
 
       common_opts = { resource: resource, start_time: start_time, end_time: end_time, resolution: resolution }
 
-      cpu_data          = client.cpu(**common_opts)
-      memory_data       = client.memory(**common_opts)
+      cpu_data          = safe_metric(:cpu, **common_opts)
+      memory_data       = safe_metric(:memory, **common_opts)
       cpu_limit_data    = safe_metric(:cpu_limit, **common_opts)
       memory_limit_data = safe_metric(:memory_limit, **common_opts)
       disk_usage_data     = safe_metric(:disk_usage, **common_opts)
@@ -56,6 +56,8 @@ module RenderDashboard
       render json: payload
     rescue RenderDashboard::RateLimitError => e
       render json: { error: e.message, rate_limited: true }, status: :too_many_requests
+    rescue RenderDashboard::TimeoutError => e
+      render json: { error: e.message, timed_out: true }, status: :gateway_timeout
     rescue RenderDashboard::Error, ArgumentError => e
       render json: { error: e.message }, status: :unprocessable_entity
     end
@@ -68,7 +70,7 @@ module RenderDashboard
 
     def safe_metric(method, **opts)
       client.public_send(method, **opts)
-    rescue RenderDashboard::RateLimitError
+    rescue RenderDashboard::RateLimitError, RenderDashboard::TimeoutError
       raise
     rescue RenderDashboard::Error
       []
