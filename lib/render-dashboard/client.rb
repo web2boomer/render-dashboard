@@ -102,8 +102,8 @@ module RenderDashboard
       get(path, **params)
     end
 
-    MAX_RETRIES = 3
-    BASE_DELAY  = 2.0 # seconds
+    MAX_RETRIES = 2
+    BASE_DELAY  = 1.0 # seconds
 
     def get(path, **params)
       retries = 0
@@ -113,7 +113,8 @@ module RenderDashboard
           "#{BASE_URL}#{path}",
           headers: headers,
           query: params.empty? ? nil : params,
-          timeout: 30
+          open_timeout: 5,
+          read_timeout: 10
         )
 
         unless response.success?

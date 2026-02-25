@@ -3,8 +3,10 @@
 module RenderDashboard
   class MetricsController < ::ApplicationController
     def index
-      all_services = client.services
-      projects = client.projects rescue []
+      services_thread = Thread.new { client.services }
+      projects_thread = Thread.new { client.projects rescue [] }
+      all_services = services_thread.value
+      projects = projects_thread.value
 
       env_to_project = {}
       projects.each do |proj|
