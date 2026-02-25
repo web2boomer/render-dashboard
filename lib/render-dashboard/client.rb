@@ -102,8 +102,8 @@ module RenderDashboard
       get(path, **params)
     end
 
-    MAX_RETRIES = 2
-    BASE_DELAY  = 1.0 # seconds
+    MAX_RETRIES = 5
+    BASE_DELAY  = 0.5 # seconds
 
     def get(path, **params)
       retries = 0
