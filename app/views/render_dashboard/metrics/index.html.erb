@@ -91,7 +91,12 @@
                     <% end %>
                   </div>
                 </div>
-                <span class="text-xs font-mono text-gray-400 dark:text-slate-500"><%= svc_id %></span>
+                <div class="flex items-center gap-2">
+                  <button class="pin-btn p-1 rounded-md transition-colors text-gray-300 dark:text-slate-600 hover:text-amber-500 dark:hover:text-amber-400" data-pin-id="<%= svc_id %>" title="Pin to top">
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/></svg>
+                  </button>
+                  <span class="text-xs font-mono text-gray-400 dark:text-slate-500"><%= svc_id %></span>
+                </div>
               </div>
 
               <div class="grid grid-cols-1 lg:grid-cols-2 <%= disk.present? ? 'xl:grid-cols-3' : '' %> gap-4">
@@ -137,6 +142,7 @@ document.addEventListener('DOMContentLoaded', function() {
   let currentHours = parseInt(urlParams.get('hours')) || 24;
   let currentCols = parseInt(urlParams.get('cols')) || 1;
   let fullScale = urlParams.get('scale') === 'full';
+  let pinnedIds = new Set((urlParams.get('pin') || '').split(',').filter(Boolean));
   var initProject = urlParams.get('project') || '';
   var initTitle = urlParams.has('title') ? urlParams.get('title') === '1' : titleDefault;
 
@@ -145,6 +151,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (currentHours !== 24) params.set('hours', currentHours);
     if (currentCols !== 1) params.set('cols', currentCols);
     if (fullScale) params.set('scale', 'full');
+    if (pinnedIds.size > 0) params.set('pin', Array.from(pinnedIds).join(','));
     var pf = document.getElementById('project-filter');
     if (pf && pf.value) params.set('project', pf.value);
     var te = document.getElementById('page-title');
@@ -548,6 +555,48 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
   activateTimeBtn(currentHours);
+
+  // Pin management
+  function syncPinButtons() {
+    document.querySelectorAll('.pin-btn').forEach(function(btn) {
+      var pinned = pinnedIds.has(btn.dataset.pinId);
+      btn.classList.toggle('text-amber-500', pinned);
+      btn.classList.toggle('dark:text-amber-400', pinned);
+      btn.classList.toggle('text-gray-300', !pinned);
+      btn.classList.toggle('dark:text-slate-600', !pinned);
+      var card = btn.closest('.card');
+      if (card) {
+        card.classList.toggle('ring-1', pinned);
+        card.classList.toggle('ring-amber-400/50', pinned);
+        card.classList.toggle('dark:ring-amber-500/30', pinned);
+      }
+    });
+  }
+
+  function reorderPinned() {
+    document.querySelectorAll('.services-grid').forEach(function(grid) {
+      var cards = Array.from(grid.querySelectorAll('.card[data-service-id]'));
+      cards.sort(function(a, b) {
+        var ap = pinnedIds.has(a.dataset.serviceId) ? 0 : 1;
+        var bp = pinnedIds.has(b.dataset.serviceId) ? 0 : 1;
+        return ap - bp;
+      });
+      cards.forEach(function(card) { grid.appendChild(card); });
+    });
+  }
+
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('.pin-btn');
+    if (!btn) return;
+    var id = btn.dataset.pinId;
+    if (pinnedIds.has(id)) { pinnedIds.delete(id); } else { pinnedIds.add(id); }
+    syncPinButtons();
+    reorderPinned();
+    updateURL();
+  });
+
+  syncPinButtons();
+  reorderPinned();
 
   // Initial load
   loadAll(currentHours);
