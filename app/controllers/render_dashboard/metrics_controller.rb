@@ -25,7 +25,8 @@ module RenderDashboard
       if pinned.any?
         @error = nil
         @services = pinned.map { |id| { "id" => id, "name" => id, "type" => "", "serviceDetails" => {} } }
-        @grouped_services = [["Pinned", @services]]
+        group_name = params[:project].presence || "Pinned"
+        @grouped_services = [[group_name, @services]]
       else
         @error = e.message
         @services = []
