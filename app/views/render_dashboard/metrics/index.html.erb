@@ -327,12 +327,11 @@ document.addEventListener('DOMContentLoaded', function() {
     return Math.floor(30 + Math.random() * 60);
   }
 
-  function showRetryCountdown(serviceId, reason) {
+  function showRetryCountdown(serviceId, reason, seconds) {
     const chartTypes = ['cpu', 'memory'];
     if (SERVICES_WITH_DISK.has(serviceId)) chartTypes.push('disk');
 
-    const RETRY_SECONDS = randomRetrySeconds();
-    let remaining = RETRY_SECONDS;
+    let remaining = seconds || randomRetrySeconds();
     const label = reason === 'timeout' ? 'Timed out' : 'Rate limited';
 
     chartTypes.forEach(function(type) {
@@ -380,9 +379,9 @@ document.addEventListener('DOMContentLoaded', function() {
       .then(function(data) {
         if (data._retryReason) {
           var reason = data._retryReason;
-          var delay = randomRetrySeconds() * 1000;
+          var delay = (data.retry_after ? (data.retry_after + Math.random() * 3) : randomRetrySeconds()) * 1000;
           console.warn('Metrics ' + reason + ' for ' + serviceId + (data.error ? ': ' + data.error : '') + ' — retrying in ' + Math.round(delay / 1000) + 's');
-          showRetryCountdown(serviceId, reason);
+          showRetryCountdown(serviceId, reason, Math.round(delay / 1000));
           setTimeout(function() { loadService(serviceId, hours); }, delay);
           return;
         }

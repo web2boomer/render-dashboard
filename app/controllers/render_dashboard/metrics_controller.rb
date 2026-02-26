@@ -60,7 +60,9 @@ module RenderDashboard
 
       render json: payload
     rescue RenderDashboard::RateLimitError => e
-      render json: { error: e.message, rate_limited: true }, status: :too_many_requests
+      retry_after = e.respond_to?(:reset_seconds) ? e.reset_seconds : 60
+      response.set_header("Retry-After", retry_after.to_s)
+      render json: { error: e.message, rate_limited: true, retry_after: retry_after }, status: :too_many_requests
     rescue RenderDashboard::TimeoutError => e
       render json: { error: e.message, timed_out: true }, status: :gateway_timeout
     rescue RenderDashboard::Error, ArgumentError => e

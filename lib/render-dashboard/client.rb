@@ -134,20 +134,16 @@ module RenderDashboard
         unless response.success?
           if response.code == 429
             reset = (response.headers["ratelimit-reset"] || 60).to_i
-            raise RateLimitError, "Rate limit exceeded on #{path} (resets in #{reset}s)"
+            error = RateLimitError.new("Rate limit exceeded on #{path} (resets in #{reset}s)")
+            error.define_singleton_method(:reset_seconds) { reset }
+            raise error
           end
           raise Error, "Render API error #{response.code} on #{path}: #{response.body}"
         end
 
         response.parsed_response
       rescue RateLimitError
-        if retries < MAX_RETRIES
-          retries += 1
-          reset = rate_limit_wait
-          sleep reset > 0 ? reset + rand(2.0) : jitter(1.0 * (2**retries))
-          retry
-        end
-        raise RateLimitError, "Rate limit exceeded on #{path}. Retried #{retries}x."
+        raise
       rescue Net::ReadTimeout, Net::OpenTimeout, Errno::ETIMEDOUT => e
         if retries < MAX_RETRIES
           retries += 1
@@ -162,8 +158,12 @@ module RenderDashboard
       rl = self.class.rate_limit
       return unless rl[:remaining]&.zero? && rl[:reset_at]
 
-      wait = rl[:reset_at] - Time.now.to_f
-      sleep(wait + rand(0.5)) if wait > 0
+      wait = (rl[:reset_at] - Time.now.to_f).ceil
+      if wait > 0
+        error = RateLimitError.new("Rate limited (resets in #{wait}s)")
+        error.define_singleton_method(:reset_seconds) { wait }
+        raise error
+      end
     end
 
     def track_rate_limit(response)
