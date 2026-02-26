@@ -24,6 +24,9 @@
         <button data-cols="3" class="col-btn px-1.5 py-1 rounded-md transition-colors" title="3 columns">
           <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor"><rect x="0.5" y="2" width="4" height="12" rx="1"/><rect x="6" y="2" width="4" height="12" rx="1"/><rect x="11.5" y="2" width="4" height="12" rx="1"/></svg>
         </button>
+        <button data-cols="4" class="col-btn px-1.5 py-1 rounded-md transition-colors" title="4 columns">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor"><rect x="0" y="2" width="3" height="12" rx="0.75"/><rect x="4.33" y="2" width="3" height="12" rx="0.75"/><rect x="8.66" y="2" width="3" height="12" rx="0.75"/><rect x="13" y="2" width="3" height="12" rx="0.75"/></svg>
+        </button>
       </div>
       <div class="w-px h-5 bg-slate-200 dark:bg-slate-700"></div>
       <% if @grouped_services.is_a?(Array) && @grouped_services.length > 1 %>
@@ -140,7 +143,7 @@ document.addEventListener('DOMContentLoaded', function() {
   var urlParams = new URLSearchParams(window.location.search);
   var titleDefault = <%= RenderDashboard.configuration.show_title ? 'true' : 'false' %>;
   let currentHours = parseInt(urlParams.get('hours')) || 24;
-  let currentCols = parseInt(urlParams.get('cols')) || 1;
+  let currentCols = Math.min(4, Math.max(1, parseInt(urlParams.get('cols')) || 1));
   let fullScale = urlParams.get('scale') === 'full';
   let pinnedIds = new Set((urlParams.get('pin') || '').split(',').filter(Boolean));
   var initProject = urlParams.get('project') || '';
@@ -506,9 +509,10 @@ document.addEventListener('DOMContentLoaded', function() {
   var colClasses = {
     1: ['grid-cols-1'],
     2: ['grid-cols-1', 'lg:grid-cols-2'],
-    3: ['grid-cols-1', 'lg:grid-cols-2', 'xl:grid-cols-3']
+    3: ['grid-cols-1', 'lg:grid-cols-2', 'xl:grid-cols-3'],
+    4: ['grid-cols-1', 'lg:grid-cols-2', 'xl:grid-cols-4']
   };
-  var allColClasses = ['grid-cols-1', 'lg:grid-cols-2', 'xl:grid-cols-3'];
+  var allColClasses = ['grid-cols-1', 'lg:grid-cols-2', 'xl:grid-cols-3', 'xl:grid-cols-4'];
   var colPicker = document.getElementById('col-picker');
 
   function setColumns(n) {
