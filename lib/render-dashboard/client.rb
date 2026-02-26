@@ -6,6 +6,7 @@ require "json"
 module RenderDashboard
   class Client
     BASE_URL = "https://api.render.com/v1"
+    CACHE_TTL = 300 # 5 minutes
 
     def initialize(api_key: nil)
       @api_key = api_key || RenderDashboard.configuration.api_key
@@ -15,7 +16,9 @@ module RenderDashboard
     # ── Services ──────────────────────────────────────────────
 
     def services(limit: 50)
-      get("/services", limit: limit).map { |s| s["service"] || s }
+      cache_fetch(:services) do
+        get("/services", limit: limit).map { |s| s["service"] || s }
+      end
     end
 
     def service(service_id)
@@ -23,7 +26,9 @@ module RenderDashboard
     end
 
     def projects(limit: 50)
-      get("/projects", limit: limit).map { |p| p["project"] || p }
+      cache_fetch(:projects) do
+        get("/projects", limit: limit).map { |p| p["project"] || p }
+      end
     end
 
     # ── Metrics ───────────────────────────────────────────────
@@ -103,12 +108,19 @@ module RenderDashboard
     end
 
     MAX_RETRIES = 5
-    BASE_DELAY  = 0.5 # seconds
+    RATE_LIMIT_MUTEX = Mutex.new
+    @rate_limit = { remaining: nil, reset_at: nil }
+
+    def self.rate_limit
+      @rate_limit
+    end
 
     def get(path, **params)
       retries = 0
 
       begin
+        wait_for_rate_limit
+
         response = HTTParty.get(
           "#{BASE_URL}#{path}",
           headers: headers,
@@ -117,8 +129,13 @@ module RenderDashboard
           read_timeout: 10
         )
 
+        track_rate_limit(response)
+
         unless response.success?
-          raise RateLimitError, "Rate limit exceeded on #{path}" if response.code == 429
+          if response.code == 429
+            reset = (response.headers["ratelimit-reset"] || 60).to_i
+            raise RateLimitError, "Rate limit exceeded on #{path} (resets in #{reset}s)"
+          end
           raise Error, "Render API error #{response.code} on #{path}: #{response.body}"
         end
 
@@ -126,18 +143,45 @@ module RenderDashboard
       rescue RateLimitError
         if retries < MAX_RETRIES
           retries += 1
-          sleep jitter(BASE_DELAY * (2**retries))
+          reset = rate_limit_wait
+          sleep reset > 0 ? reset + rand(2.0) : jitter(1.0 * (2**retries))
           retry
         end
         raise RateLimitError, "Rate limit exceeded on #{path}. Retried #{retries}x."
       rescue Net::ReadTimeout, Net::OpenTimeout, Errno::ETIMEDOUT => e
         if retries < MAX_RETRIES
           retries += 1
-          sleep jitter(BASE_DELAY * (2**retries))
+          sleep jitter(0.5 * (2**retries))
           retry
         end
         raise TimeoutError, "Timeout on #{path} after #{retries} retries: #{e.message}"
       end
+    end
+
+    def wait_for_rate_limit
+      rl = self.class.rate_limit
+      return unless rl[:remaining]&.zero? && rl[:reset_at]
+
+      wait = rl[:reset_at] - Time.now.to_f
+      sleep(wait + rand(0.5)) if wait > 0
+    end
+
+    def track_rate_limit(response)
+      remaining = response.headers["ratelimit-remaining"]
+      reset     = response.headers["ratelimit-reset"]
+      return unless remaining
+
+      RATE_LIMIT_MUTEX.synchronize do
+        self.class.rate_limit[:remaining] = remaining.to_i
+        self.class.rate_limit[:reset_at]  = Time.now.to_f + reset.to_i if reset
+      end
+    end
+
+    def rate_limit_wait
+      rl = self.class.rate_limit
+      return 0 unless rl[:reset_at]
+
+      [rl[:reset_at] - Time.now.to_f, 0].max
     end
 
     def jitter(base)
@@ -157,6 +201,22 @@ module RenderDashboard
       when Numeric then Time.at(time).utc.iso8601
       else time.utc.iso8601
       end
+    end
+
+    CACHE_MUTEX = Mutex.new
+    @cache = {}
+
+    def self.cache
+      @cache
+    end
+
+    def cache_fetch(key, ttl: CACHE_TTL)
+      entry = self.class.cache[key]
+      return entry[:data] if entry && (Time.now - entry[:at]) < ttl
+
+      data = yield
+      CACHE_MUTEX.synchronize { self.class.cache[key] = { data: data, at: Time.now } }
+      data
     end
   end
 end

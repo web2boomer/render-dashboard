@@ -21,9 +21,16 @@ module RenderDashboard
       @grouped_services = grouped.sort_by { |name, _| name == "Other" ? "\xFF" : name.downcase }
       @services = all_services
     rescue RenderDashboard::Error, ArgumentError => e
-      @error = e.message
-      @services = []
-      @grouped_services = []
+      pinned = (params[:pin] || "").split(",").select(&:present?)
+      if pinned.any?
+        @error = nil
+        @services = pinned.map { |id| { "id" => id, "name" => id, "type" => "", "serviceDetails" => {} } }
+        @grouped_services = [["Pinned", @services]]
+      else
+        @error = e.message
+        @services = []
+        @grouped_services = []
+      end
     end
 
     def data
