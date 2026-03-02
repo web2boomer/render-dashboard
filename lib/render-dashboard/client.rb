@@ -17,17 +17,17 @@ module RenderDashboard
 
     def services(limit: 50)
       cache_fetch(:services) do
-        get("/services", max_retries: 0, open_timeout: 3, limit: limit).map { |s| s["service"] || s }
+        get("/services", limit: limit).map { |s| s["service"] || s }
       end
     end
 
     def service(service_id)
-      get("/services/#{service_id}", max_retries: 0, open_timeout: 3)
+      get("/services/#{service_id}")
     end
 
     def projects(limit: 50)
       cache_fetch(:projects) do
-        get("/projects", max_retries: 0, open_timeout: 3, limit: limit).map { |p| p["project"] || p }
+        get("/projects", limit: limit).map { |p| p["project"] || p }
       end
     end
 
@@ -107,7 +107,7 @@ module RenderDashboard
       get(path, **params)
     end
 
-    DEFAULT_MAX_RETRIES = 2
+    DEFAULT_MAX_RETRIES = 0
     RATE_LIMIT_MUTEX = Mutex.new
     @rate_limit = { remaining: nil, reset_at: nil }
 
@@ -115,7 +115,7 @@ module RenderDashboard
       @rate_limit
     end
 
-    def get(path, max_retries: DEFAULT_MAX_RETRIES, open_timeout: 5, read_timeout: 10, **params)
+    def get(path, max_retries: DEFAULT_MAX_RETRIES, open_timeout: 3, read_timeout: 5, **params)
       retries = 0
 
       begin
