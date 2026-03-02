@@ -3,6 +3,7 @@
 module RenderDashboard
   class MetricsController < ::ApplicationController
     def index
+      @title = "Render Metrics"
       services_thread = Thread.new { client.services }
       projects_thread = Thread.new { client.projects rescue [] }
       all_services = services_thread.value
