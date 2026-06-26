@@ -20,8 +20,8 @@ module RenderDashboard
       capacity_bytes = latest_metric_value(capacity_series)
       timestamp = latest_metric_timestamp(usage_series) || latest_metric_timestamp(capacity_series)
 
-      raise Error, "No disk usage metrics for #{resource_id}" unless used_bytes
-      raise Error, "No disk capacity metrics for #{resource_id}" unless capacity_bytes
+      raise MetricsUnavailableError.new(resource_id: resource_id, metric: "disk usage") unless used_bytes
+      raise MetricsUnavailableError.new(resource_id: resource_id, metric: "disk capacity") unless capacity_bytes
 
       new(
         used_bytes: used_bytes,

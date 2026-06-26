@@ -25,8 +25,23 @@ module RenderDashboard
 
       usage
     rescue Error => e
-      on_warn.call "Disk check failed: #{e.message}"
+      on_warn.call failure_message(e)
       nil
+    end
+
+    def failure_message(error)
+      category = case error
+                 when RateLimitError then "rate limited"
+                 when TimeoutError then "API timeout"
+                 when ApiError then error.category
+                 when MetricsUnavailableError then "no metrics"
+                 end
+
+      if category
+        "Disk check failed (#{category}): #{error.message}"
+      else
+        "Disk check failed: #{error.message}"
+      end
     end
 
     def default_threshold

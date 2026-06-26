@@ -142,7 +142,7 @@ module RenderDashboard
             error.define_singleton_method(:reset_seconds) { reset }
             raise error
           end
-          raise Error, "Render API error #{response.code} on #{path}: #{response.body}"
+          raise ApiError.new(status: response.code, path: path, body: response.body)
         end
 
         response.parsed_response
