@@ -25,6 +25,10 @@ module RenderDashboard
       get("/services/#{service_id}")
     end
 
+    def disk(disk_id)
+      get("/disks/#{disk_id}")
+    end
+
     def projects(limit: 50)
       cache_fetch(:projects) do
         get("/projects", limit: limit).map { |p| p["project"] || p }

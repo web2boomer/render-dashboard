@@ -110,6 +110,19 @@ All metric methods accept: `resource:`, `start_time:`, `end_time:`, `resolution:
 | ------------------- | ----------------------- |
 | `services(limit:)`  | List all services       |
 | `service(id)`       | Get a single service    |
+| `disk(id)`          | Get a persistent disk   |
+
+### Disk usage helper
+
+```ruby
+usage = RenderDashboard::DiskUsage.fetch("srv-xxxxx")
+usage.used_percent   # => 85.8
+usage.used_gb        # => 253.0
+usage.total_gb       # => 294.79
+usage.summary        # => "85.8% (253.0 GB / 294.79 GB) on prophecy db (Render metrics API)"
+```
+
+Uses `/metrics/disk-usage` and `/metrics/disk-capacity` — works from any host with API credentials (no disk mount required).
 
 ## Rake Tasks
 
@@ -117,7 +130,7 @@ Available when the gem is loaded in a Rails app.
 
 ### `render-dashboard:info`
 
-Prints service and disk info for all services:
+Prints service and disk info, including live usage from the Render metrics API:
 
 ```bash
 rake render-dashboard:info
@@ -131,19 +144,19 @@ RENDER_SERVICE_ID=srv-xxxxx rake render-dashboard:info
 
 ### `render-dashboard:disk_check`
 
-Checks database disk usage against a threshold and alerts if exceeded. Queries `information_schema` (MySQL / MariaDB).
+Checks disk usage via the Render metrics API and alerts if the threshold is exceeded.
 
 ```bash
 rake render-dashboard:disk_check
 ```
 
-| Environment Variable    | Description                                         | Default            |
-| ----------------------- | --------------------------------------------------- | ------------------ |
-| `RENDER_API_KEY`        | Render API key (used to look up disk size)           | —                  |
-| `RENDER_SERVICE_ID`     | Service to check                                     | —                  |
-| `RENDER_DISK_SIZE_GB`   | Fallback disk size when the API isn't available       | —                  |
-| `RENDER_SERVICE_NAME`   | Label used in output and alerts                      | `"database"`       |
-| `DISK_ALERT_THRESHOLD`  | Usage percentage that triggers an alert              | `80`               |
+| Environment Variable               | Description                            | Default      |
+| ---------------------------------- | -------------------------------------- | ------------ |
+| `RENDER_API_KEY`                   | Render API key                         | —            |
+| `RENDER_SERVICE_ID`                | Service to check                       | —            |
+| `RENDER_SERVICE_NAME`              | Label when API lookup fails            | `"database"` |
+| `RENDER_DISK_PERCENT_USE_WARNING`  | Usage percentage that triggers alert   | `80`         |
+| `DISK_ALERT_THRESHOLD`             | Alias for the warning threshold        | `80`         |
 
 When the threshold is exceeded the task will call the following hooks if they exist in the host app:
 

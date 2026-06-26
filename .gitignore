@@ -1,0 +1,39 @@
+.DS_Store
+
+# Bundler / RubyGems
+/.bundle/
+/vendor/bundle/
+*.gem
+/pkg/
+
+# Test / coverage
+/coverage/
+/spec/reports/
+/spec/examples.txt
+.rspec_status
+
+# Docs generated locally
+/.yardoc/
+/_yardoc/
+/doc/
+
+# Temp / logs
+/tmp/
+/log/
+*.log
+
+# Secrets and local config
+.env*
+/config/application.yml
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Lockfile (gem consumers resolve their own)
+Gemfile.lock
+
+.byebug_history

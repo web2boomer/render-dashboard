@@ -3,6 +3,8 @@
 require_relative "render-dashboard/version"
 require_relative "render-dashboard/configuration"
 require_relative "render-dashboard/client"
+require_relative "render-dashboard/disk_usage"
+require_relative "render-dashboard/disk_monitor"
 
 module RenderDashboard
   class Error < StandardError; end
