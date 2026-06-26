@@ -9,8 +9,7 @@ module RenderDashboard
       threshold: default_threshold,
       on_info: method(:default_info),
       on_warn: method(:default_warn),
-      on_urgent: method(:default_urgent),
-      alert: true
+      on_urgent: method(:default_urgent)
     )
       unless RenderDashboard.configuration.api_key && service_id
         on_warn.call "Disk check skipped: set RENDER_API_KEY + RENDER_SERVICE_ID"
@@ -21,8 +20,7 @@ module RenderDashboard
       on_info.call "Disk usage: #{usage.summary}"
 
       if usage.over_threshold?(threshold)
-        on_urgent.call "Disk alert: #{usage.service_name} at #{usage.used_percent}% (threshold: #{threshold}%)"
-        deliver_alerts(usage, threshold) if alert
+        on_urgent.call "Disk alert: #{usage.service_name} at #{usage.used_percent}% (threshold: #{threshold}%). #{usage.used_gb} GB / #{usage.total_gb} GB used."
       end
 
       usage
@@ -46,25 +44,5 @@ module RenderDashboard
     def default_urgent(message)
       warn message
     end
-
-    def deliver_alerts(usage, threshold)
-      if defined?(SystemMailer) && SystemMailer.respond_to?(:disk_alert)
-        SystemMailer.disk_alert(
-          used_percent: usage.used_percent,
-          used_gb: usage.used_gb,
-          total_gb: usage.total_gb,
-          service_name: usage.service_name
-        ).deliver_later
-      end
-
-      if defined?(WhatsappNotifier) && WhatsappNotifier.respond_to?(:send_system_alert)
-        WhatsappNotifier.send_system_alert(
-          "Disk at #{usage.used_percent}% on #{usage.service_name}",
-          "#{usage.used_gb} GB / #{usage.total_gb} GB used. Consider cleaning up or expanding storage."
-        )
-      end
-    end
-
-    private_class_method :deliver_alerts
   end
 end

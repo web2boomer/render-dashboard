@@ -144,7 +144,7 @@ RENDER_SERVICE_ID=srv-xxxxx rake render-dashboard:info
 
 ### `render-dashboard:disk_check`
 
-Checks disk usage via the Render metrics API and alerts if the threshold is exceeded.
+Checks disk usage via the Render metrics API and writes an urgent log when the threshold is exceeded.
 
 ```bash
 rake render-dashboard:disk_check
@@ -155,13 +155,10 @@ rake render-dashboard:disk_check
 | `RENDER_API_KEY`                   | Render API key                         | —            |
 | `RENDER_SERVICE_ID`                | Service to check                       | —            |
 | `RENDER_SERVICE_NAME`              | Label when API lookup fails            | `"database"` |
-| `RENDER_DISK_PERCENT_USE_WARNING`  | Usage percentage that triggers alert   | `80`         |
+| `RENDER_DISK_PERCENT_USE_WARNING`  | Usage percentage that triggers urgent logging | `80`         |
 | `DISK_ALERT_THRESHOLD`             | Alias for the warning threshold        | `80`         |
 
-When the threshold is exceeded the task will call the following hooks if they exist in the host app:
-
-- `SystemMailer.disk_alert(used_percent:, used_gb:, total_gb:, service_name:)`
-- `WhatsappNotifier.send_system_alert(title, body)`
+When the threshold is exceeded the task only writes to the configured urgent logger. It does not deliver email, WhatsApp, push notifications, or other external alerts.
 
 ## Development
 
