@@ -153,8 +153,7 @@ rake render-dashboard:disk_check
 | Environment Variable               | Description                            | Default      |
 | ---------------------------------- | -------------------------------------- | ------------ |
 | `RENDER_API_KEY`                   | Render API key                         | —            |
-| `RENDER_DB_SERVICE_ID`             | Service to check for disk monitoring   | `RENDER_SERVICE_ID` |
-| `RENDER_SERVICE_ID`                | Fallback service to check              | —            |
+| `RENDER_DISK_SERVICE_ID`           | Service to check for disk monitoring   | —            |
 | `RENDER_SERVICE_NAME`              | Label when API lookup fails            | `"database"` |
 | `RENDER_DISK_PERCENT_USE_WARNING`  | Usage percentage that triggers urgent logging | `80`         |
 | `DISK_ALERT_THRESHOLD`             | Alias for the warning threshold        | `80`         |

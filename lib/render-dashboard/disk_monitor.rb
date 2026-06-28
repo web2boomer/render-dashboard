@@ -12,7 +12,7 @@ module RenderDashboard
       on_urgent: method(:default_urgent)
     )
       unless RenderDashboard.configuration.api_key && service_id
-        on_warn.call "Disk check skipped: set RENDER_API_KEY + RENDER_DB_SERVICE_ID"
+        on_warn.call "Disk check skipped: set RENDER_API_KEY + RENDER_DISK_SERVICE_ID"
         return nil
       end
 
@@ -49,7 +49,7 @@ module RenderDashboard
     end
 
     def default_service_id
-      ENV["RENDER_DB_SERVICE_ID"] || ENV["RENDER_SERVICE_ID"]
+      ENV["RENDER_DISK_SERVICE_ID"]
     end
 
     def default_info(message)
