@@ -1,10 +1,10 @@
 namespace :"render-dashboard" do
 
-  desc "Show Render service and disk info for all services (or set RENDER_SERVICE_ID for one)"
+  desc "Show Render service and disk info for all services (or set service_id / RENDER_DB_SERVICE_ID / RENDER_SERVICE_ID for one)"
   task info: :environment do
     client = RenderDashboard::Client.new
 
-    service_id = ENV["RENDER_SERVICE_ID"] || ENV["service_id"]
+    service_id = ENV["service_id"] || ENV["RENDER_DB_SERVICE_ID"] || ENV["RENDER_SERVICE_ID"]
 
     services = if service_id
                  [client.service(service_id)]

@@ -139,7 +139,7 @@ rake render-dashboard:info
 To inspect a single service:
 
 ```bash
-RENDER_SERVICE_ID=srv-xxxxx rake render-dashboard:info
+rake render-dashboard:info service_id=srv-xxxxx
 ```
 
 ### `render-dashboard:disk_check`
@@ -153,7 +153,8 @@ rake render-dashboard:disk_check
 | Environment Variable               | Description                            | Default      |
 | ---------------------------------- | -------------------------------------- | ------------ |
 | `RENDER_API_KEY`                   | Render API key                         | —            |
-| `RENDER_SERVICE_ID`                | Service to check                       | —            |
+| `RENDER_DB_SERVICE_ID`             | Service to check for disk monitoring   | `RENDER_SERVICE_ID` |
+| `RENDER_SERVICE_ID`                | Fallback service to check              | —            |
 | `RENDER_SERVICE_NAME`              | Label when API lookup fails            | `"database"` |
 | `RENDER_DISK_PERCENT_USE_WARNING`  | Usage percentage that triggers urgent logging | `80`         |
 | `DISK_ALERT_THRESHOLD`             | Alias for the warning threshold        | `80`         |

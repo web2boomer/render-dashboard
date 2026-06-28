@@ -5,14 +5,14 @@ module RenderDashboard
     module_function
 
     def check(
-      service_id: ENV["RENDER_SERVICE_ID"],
+      service_id: default_service_id,
       threshold: default_threshold,
       on_info: method(:default_info),
       on_warn: method(:default_warn),
       on_urgent: method(:default_urgent)
     )
       unless RenderDashboard.configuration.api_key && service_id
-        on_warn.call "Disk check skipped: set RENDER_API_KEY + RENDER_SERVICE_ID"
+        on_warn.call "Disk check skipped: set RENDER_API_KEY + RENDER_DB_SERVICE_ID"
         return nil
       end
 
@@ -46,6 +46,10 @@ module RenderDashboard
 
     def default_threshold
       (ENV["RENDER_DISK_PERCENT_USE_WARNING"] || ENV["DISK_ALERT_THRESHOLD"] || 80).to_i
+    end
+
+    def default_service_id
+      ENV["RENDER_DB_SERVICE_ID"] || ENV["RENDER_SERVICE_ID"]
     end
 
     def default_info(message)
